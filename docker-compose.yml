@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  django:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - .:/app
+    depends_on:
+      - fastapi
+
+  fastapi:
+    image: your-fastapi-image:latest
+    ports:
+      - "8100:8000"
+    # if your mcp_server is in repo, add a service here to run it

@@ -1,0 +1,92 @@
+{% extends "finance_app/base.html" %}
+{% block content %}
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(to right, #00c6fb, #005bea);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+    }
+    .auth-card {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        width: 350px;
+    }
+    h2 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 20px;
+    }
+    label {
+        font-weight: 600;
+        margin-top: 10px;
+        display: block;
+    }
+    input {
+        width: 100%;
+        padding: 10px;
+        margin-top: 5px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        outline: none;
+    }
+    input:focus {
+        border-color: #00c6fb;
+        box-shadow: 0 0 5px rgba(0,198,251,0.5);
+    }
+    button {
+        width: 100%;
+        padding: 10px;
+        background: #00c6fb;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 15px;
+    }
+    button:hover {
+        background: #005bea;
+    }
+    .auth-link {
+        text-align: center;
+        margin-top: 15px;
+    }
+    .error-msg {
+        color: red;
+        font-size: 14px;
+        text-align: center;
+    }
+</style>
+
+<div class="auth-card">
+    <h2>🔑 Login</h2>
+
+    {% if messages %}
+        {% for message in messages %}
+            <p class="error-msg">{{ message }}</p>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <label>Username</label>
+        <input type="text" name="username" required>
+
+        <label>Password</label>
+        <input type="password" name="password" required>
+
+        <button type="submit">Login</button>
+    </form>
+
+    <div class="auth-link">
+        Don't have an account? <a href="{% url 'signup' %}">Sign Up</a>
+    </div>
+</div>
+{% endblock %}
