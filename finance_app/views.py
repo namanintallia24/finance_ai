@@ -22,6 +22,7 @@ from django.contrib.auth import login as auth_login ,logout
 from django.views.decorators.csrf import csrf_protect
 from .models import UserQueryHistory
 from django.db import IntegrityError
+from finance_app.frontend.chart_data import prepare_chart_data
 
 
 
@@ -424,7 +425,52 @@ def logout_view(request):
 
 #     return render(request, "finance_app/dashboard.html", context)
 
-# this code is working proper 
+# this code is working proper
+
+from bs4 import BeautifulSoup
+from collections import defaultdict
+
+def merge_tables(saved_tables):
+    grouped = defaultdict(list)
+
+    # Group only by title
+    for item in saved_tables:
+        grouped[item["title"]].append(item["html"])
+
+    merged = []
+    for title, html_list in grouped.items():
+        all_rows = []
+        header_html = None
+
+        # Collect rows from all tables with same title
+        for html in html_list:
+            soup = BeautifulSoup(html, "html.parser")
+
+            # Save header from first table only
+            if header_html is None:
+                thead = soup.find("thead")
+                header_html = str(thead) if thead else "<thead></thead>"
+
+            tbody = soup.find("tbody")
+            if tbody:
+                all_rows.extend(tbody.find_all("tr"))
+
+        # Build merged table
+        merged_html = f"""
+        <table border="1" class="dataframe">
+          {header_html}
+          <tbody>
+            {''.join(str(row) for row in all_rows)}
+          </tbody>
+        </table>
+        """
+
+        merged.append({"title": title, "html": merged_html})
+
+    return merged
+
+
+
 def dashboard_view(request):
     token = request.COOKIES.get("jwt_token")
     payload = verify_jwt(token) if token else None
@@ -455,6 +501,7 @@ def dashboard_view(request):
             context["final_response"] = h.response
             context["user_query"] = h.query
             context["tables"] = h.tables_html or []
+            context["chart_data"] = h.chart_data 
         except UserQueryHistory.DoesNotExist:
             messages.error(request, "History not found or not yours.")
         return render(request, "finance_app/dashboard.html", context)
@@ -485,6 +532,7 @@ def dashboard_view(request):
             chart_data = None
 
             for tc in tool_calls:
+                breakpoint()
                 tool_name = tc.get("tool_name")
                 parameters = tc.get("parameters", {})
                 res = call_tool_http(tool_name, parameters)
@@ -529,24 +577,29 @@ def dashboard_view(request):
                             "title": f"{tool_name.replace('_', ' ').title()} #{idx}",
                             "html": df.to_html(index=False)
                         })
+            breakpoint()
+            saved_tables_final =merge_tables(saved_tables)
+            context["tables"] = saved_tables_final
 
-            context["tables"] = saved_tables
+
             context["raw_tool_results"] = tool_result_data_list
 
             final_prompt = f"{initial_prompt}\n\nTool Output:\n{tool_result_text}"
             final_response = run_gemini_prompt(final_prompt)
             context["final_response"] = final_response
             context["user_query"]= user_query
-            context["chart_data"]= tool_result_data_list
 
             breakpoint()
+            chart_data = prepare_chart_data(tool_result_data_list)
+            context["chart_data"] = chart_data   # ✅ pass processed chart_data
 
             # Save to history
             UserQueryHistory.objects.create(
                 user=request.user,
                 query=user_query,
                 response=final_response,
-                tables_html=saved_tables
+                tables_html=saved_tables_final,
+                chart_data=chart_data,
             )
 
             # Refresh history
@@ -602,3 +655,5 @@ def llm_query_api(request):
 #         "tables": tables_data,
 #         "created_at": h.created_at.strftime("%Y-%m-%d %H:%M"),
 #     })
+
+
