@@ -404,7 +404,7 @@ def extract_tool_call(gemini_response: str) -> dict:
         else:  
             quarterly_pnl_ = [
                 "quarterly performance",
-                "profit and loss statement", "income statement","quarterly results", "quarterly pnl","quarter wise results",
+                "profit and loss statement", "income statement","quarterly results", "quarterly pnl","quarter wise results","quarterly p&l",
                 "sales", "turnover", "gross sales", "total sales", "revenue",
                 "expenses", "total expenses", "operating expenses", "costs", "outflows",
                 "operating_profit", "ebit", "earnings before interest and taxes", "operating income",

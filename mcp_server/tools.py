@@ -112,6 +112,7 @@ def call_tool(tool_name, parameters):
 
     elif tool_name == "compare_quarterly_income":
         validated = QuarterlyIncomeInput(**parameters)
+        # breakpoint()
         return compare_quarterly_income(validated).dict()
 
     elif tool_name == "quarterly_shareholding":
@@ -781,11 +782,12 @@ def yearly_shareholding(input_data: YearlyShareholdingInput) -> YearlyShareholdi
 
 #For quarterly income
 def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncomeOutput:
+    breakpoint()
     result = {}
     session = SessionLocal()
     
     all_fields = {
-        "quaterly_income_statement": ["profit and loss statement","quarterly profit and loss statement", "income statement" , "quarterly results", "quarterly pnl","quarter wise results"],
+        "quaterly_income_statement": ["profit and loss statement","quarterly profit and loss statement", "income statement" , "quarterly results", "quarterly p&l", "quarterly pnl","quarter wise results"],
         "sales": ["turnover", "gross sales", "total sales", "revenue", "sales"],
         "expenses": ["total expenses", "operating expenses", "costs", "outflows", "expenses"],
         "operating_profit": ["ebit", "earnings before interest and taxes", "operating income", "operating profit"],
@@ -807,6 +809,7 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
 
 
     def resolve_field(user_field: str) -> Union[str, None]:
+        breakpoint()
         for key, aliases in all_fields.items():
             if user_field.lower() in aliases:
                 return key
@@ -852,7 +855,7 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
 
             rows = []
             params = {"company": company, "year": int(input_data.year)}
-            # 
+            
             if input_data.quarter_month:
                 for qtr in input_data.quarter_month:
                     month, year_adj = get_month_and_adjusted_year(qtr, int(input_data.year))
@@ -933,12 +936,26 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
                 }
             else:
                 field_data = {
-                    str(row["year"]): {
-                        k: float(v) if v is not None else "N/A"
+                    (
+                        f"{row['year'].year}-Q1" if row['year'].month == 6 else
+                        f"{row['year'].year}-Q2" if row['year'].month == 9 else
+                        f"{row['year'].year}-Q3" if row['year'].month == 12 else
+                        f"{row['year'].year}-Q4" if row['year'].month == 3 else
+                        f"{row['year'].year}-Invalid"
+                    ): {
+                        k: float(v) if isinstance(v, (int, float, Decimal)) else ("N/A" if v is None else str(v))
                         for k, v in row.items() if k != "year"
                     }
                     for row in rows
                 }
+
+                # field_data = {
+                #     str(row["year"]): {
+                #         k: float(v) if v is not None else "N/A"
+                #         for k, v in row.items() if k != "year"
+                #     }
+                #     for row in rows
+                # }
 
         result[company] = field_data
 
