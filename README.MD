@@ -13,25 +13,43 @@ This project implements a local AI-powered financial assistant using the Model C
 ## Project Structure
 
 ```text
-finance_ai/
+finance_ai-main/
 ├── client/
-│   └── test_tool_router.py
-├── config/
-├── data/
-│   ├── hdfc_income.csv
-│   ├── icici_income.csv
-│   └── ...
+│   ├── __init__.py
+│   └── mcp_client.py          # Client for MCP communication
+│
+├── data1/
+│   ├── __init__.py
+│   ├── db.py                  # Database connection logic
+│   └── table_create.py        # Table creation scripts
+│
+├── finance_app/               # Django app (contains models, views, APIs)
+│
+├── finance_project/           # Django project (settings, urls, wsgi/asgi)
+│
 ├── frontend/
-│   └── app.py
-├── llm/
+│   ├── __init__.py
+│   └── table_create.py        # Utility for table creation (frontend specific)
+│
+├── llm/                       # LLM integration
 │   ├── gemini_client.py
 │   ├── prompt_builder.py
 │   └── tool_router.py
+│
 ├── mcp_server/
-│   ├── main.py
+│   ├── main.py                # MCP FastAPI server
 │   ├── schemas.py
 │   └── tools.py
-├── requirements.txt
+│
+├── venv/                      # Python virtual environment
+├── venv2/                     # (Optional) second venv
+│
+├── .env                       # Environment variables
+├── db.sqlite3                 # Default SQLite database
+├── docker-compose.yml         # Docker services config
+├── Dockerfile                 # Docker build config
+├── manage.py                  # Django management commands
+├── requirements.txt           # Python dependencies
 └── README.md
 ```
 
@@ -41,7 +59,7 @@ finance_ai/
 
 ```bash
 git clone <your-repo-url>
-cd finance_ai
+cd finance_ai-main
 ```
 
 2. Create and activate a virtual environment:
@@ -62,28 +80,32 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. Run the MCP server:
+
+4. Set up environment variables
 
 ```bash
-uvicorn mcp_server.main:app --reload
-
-or 
-
-cd mcp_server
-uvicorn main:app --reload
+SECRET_KEY=your_django_secret_key
+DEBUG=True
+DATABASE_URL=sqlite:///db.sqlite3
 ```
 
-5. In a new terminal, run the Streamlit app:
+5. Run database migrations
 
 ```bash
-cd frontend
-streamlit run app.py
+python manage.py migrate
 ```
 
-6. Open your browser and go to:
 
+6. Run the MCP server:
+
+```bash
+uvicorn mcp_server.main:app --reload --port 8001
 ```
-http://localhost:8501
+
+7. Run the Django server:
+
+```bash
+python manage.py runserver
 ```
 
 You can now ask financial questions like:
