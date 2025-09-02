@@ -53,7 +53,7 @@ class Financial_Ratio_Output(BaseModel):
 class QuarterlyIncomeInput(BaseModel):
     company_names: List[str]
     year: str
-    quarter_month: List[str]
+    quarter_month: Optional[List[str]] = []
     fields: Optional[List[str]] = None 
 
 

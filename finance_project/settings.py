@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from dotenv import load_dotenv
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,10 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-7rueu8#6t*-15guo%a3w166dkc7146yx1(+ucg*-aa(-z_tlp$'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DEBUG = True
 
 ALLOWED_HOSTS = []
 
@@ -76,13 +77,28 @@ WSGI_APPLICATION = 'finance_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+# Load .env file
+load_dotenv()
+
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
+SECRET_KEY = os.getenv('SECRET_KEY')
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME_FOR_USER'),
+        'USER': os.getenv('DB_USER_FOR_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD_FOR_USER'),
+        'HOST': os.getenv('DB_HOST_FOR_USER', 'localhost'),
+        'PORT': os.getenv('DB_PORT_FOR_USER', '5432'),
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -127,7 +143,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-FASTAPI_URL = "http://127.0.0.1:8001"
+# FASTAPI_URL = "http://127.0.0.1:8001"
+
+import os
+
+# ... tumhara existing settings ...
+
+FASTAPI_URL = os.getenv("FASTAPI_URL", "http://127.0.0.1:8001")
+
+
 
 
 # AUTH_USER_MODEL = "finance_app.CustomUser"

@@ -2,32 +2,26 @@ import os
 import json
 import pandas as pd
 import traceback
-from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponseBadRequest
-
-# from bs4 import BeautifulSoup
-# from collections import defaultdict
 from llm.prompt_builder import build_prompt
 from llm.gemini_client import run_gemini_prompt
-from llm.tool_router import extract_tool_call
 from llm.context_manager import build_context
-from finance_app.services import call_tool_http
+from finance_app.services import send_mcp_tool_call
 from frontend.table_create import three_statements_df, flatten_all_financials
 import plotly.express as px
-USER_DB_FILE = os.path.join(os.path.dirname(__file__), "user_db.json")
-from django.shortcuts import render, redirect
-from django.contrib import messages
 from django.contrib.auth import authenticate , login
 from .forms import SignUpForm
 from .utils.jwt_utils import generate_jwt,verify_jwt
 from django.contrib.auth import login as auth_login ,logout
 from django.views.decorators.csrf import csrf_protect
-from .models import UserQueryHistory
 from django.db import IntegrityError
 from finance_app.frontend.chart_data import prepare_chart_data 
 from finance_app.frontend.tables import merge_tables
-
+from django.shortcuts import render, redirect
+from .models import UserQueryHistory
+from llm.tool_router import get_tool_call_from_gemini
+USER_DB_FILE = os.path.join(os.path.dirname(__file__), "user_db.json")
 
 
 
@@ -44,6 +38,8 @@ def signup_view(request):
     else:
         form = SignUpForm()
     return render(request, "finance_app/signup.html", {"form": form})
+
+
 
 # -------- Login --------
 def login_view(request):
@@ -78,50 +74,9 @@ def logout_view(request):
     return redirect("dashboard")
 
 
+
+# -------- Dashboard --------
 # this code is working proper
-
-
-
-# def merge_tables(saved_tables):
-#     grouped = defaultdict(list)
-
-#     # Group only by title
-#     for item in saved_tables:
-#         grouped[item["title"]].append(item["html"])
-
-#     merged = []
-#     for title, html_list in grouped.items():
-#         all_rows = []
-#         header_html = None
-
-#         # Collect rows from all tables with same title
-#         for html in html_list:
-#             soup = BeautifulSoup(html, "html.parser")
-
-#             # Save header from first table only
-#             if header_html is None:
-#                 thead = soup.find("thead")
-#                 header_html = str(thead) if thead else "<thead></thead>"
-
-#             tbody = soup.find("tbody")
-#             if tbody:
-#                 all_rows.extend(tbody.find_all("tr"))
-
-#         # Build merged table
-#         merged_html = f"""
-#         <table border="1" class="dataframe">
-#           {header_html}
-#           <tbody>
-#             {''.join(str(row) for row in all_rows)}
-#           </tbody>
-#         </table>
-#         """
-
-#         merged.append({"title": title, "html": merged_html})
-
-#     return merged
-
-
 
 def dashboard_view(request):
     token = request.COOKIES.get("jwt_token")
@@ -167,16 +122,9 @@ def dashboard_view(request):
             return render(request, "finance_app/dashboard.html", context)
 
         try:
-            user_query_corrected = run_gemini_prompt(
-              f"Correct only spelling mistakes in this sentence and remove all special characters "
-              f"(like - , _ , %, $, @, #, etc). Keep only letters, numbers and spaces. No extra text: {user_query}"
-            )
-            # user_query_corrected = run_gemini_prompt(
-            #     f"Correct only spelling mistakes in this sentence (no extra text): {user_query}"
-            # )
-
-            initial_prompt = build_prompt(user_query_corrected)
-            tool_calls = extract_tool_call(initial_prompt)
+            tool_calls = get_tool_call_from_gemini(user_query)
+            # initial_prompt = build_prompt(user_query_corrected)
+            # tool_calls = extract_tool_call(initial_prompt)
 
             if not tool_calls:
                 messages.warning(request, "No tool was detected for this query.")
@@ -189,11 +137,13 @@ def dashboard_view(request):
             chart_data = None
 
             for tc in tool_calls:
-                tool_name = tc.get("tool_name")
-                parameters = tc.get("parameters", {})
-                res = call_tool_http(tool_name, parameters)
+                tool_name = tc.get("method")
+                parameters = tc.get("params", {})
+                # call_id = tc.get("id", 1)
+                res = send_mcp_tool_call(tool_name, parameters)
                 tool_result_data_list.append(res)
 
+                
                 if res != "Unknown tool":
                     tool_result_text += build_context(tool_name, res) + "\n"
 
@@ -240,7 +190,7 @@ def dashboard_view(request):
 
             context["raw_tool_results"] = tool_result_data_list
 
-            final_prompt = f"{initial_prompt}\n\nTool Output:\n{tool_result_text}"
+            final_prompt = f"{user_query}\n\nTool Output:\n{tool_result_text}"
             final_response = run_gemini_prompt(final_prompt)
             context["final_response"] = final_response
             context["user_query"]= user_query
@@ -257,6 +207,7 @@ def dashboard_view(request):
                 tables_html=saved_tables_final,
                 chart_data=chart_data,
             )
+            
 
             # Refresh history
             context["history"] = UserQueryHistory.objects.filter(user=request.user).order_by("-created_at")

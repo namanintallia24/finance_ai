@@ -1,10 +1,12 @@
+# mcp_server/tools.py
+
 import pandas as pd
 from data1.db import SessionLocal
 from collections import defaultdict
 from decimal import Decimal
 from sqlalchemy import text
 from mcp_server.schemas import (
-    CompareNetIncomeInput,
+     CompareNetIncomeInput,
     CashFlowInput,
     CompareNetIncomeOutput,
     CashFlowOutput,
@@ -23,130 +25,15 @@ from mcp_server.schemas import (
     SectorWiseCompanyInput,
     SectorWiseCompanyOutput,
 )
-from datetime import datetime
-from typing import Union, List, Dict, Any , Optional
+from mcp_server.response_formatter import MCPResponseFormatter
+from typing import Union, List, Dict, Any, Optional
 
-
-#For calculate net margin
+# ------------------------------
+# Helper functions
+# ------------------------------
 def calculate_net_margin(net_profit: float, sales: float) -> Optional[float]:
     return f"{round((net_profit / sales) * 100, 2)}%" if sales else None
 
-
-def list_tools():
-    return {
-        "tools": [
-            {
-                "name": "company_info_",
-                "description": "Get company financial info by name and year",
-                "parameters": Company_Info_Input.schema()["properties"]
-            },
-            {
-                "name": "compare_net_income",
-                "description": "Compare net income between companies over time",
-                "parameters": CompareNetIncomeInput.schema()["properties"]
-            },
-            {
-                "name": "cash_flow",
-                "description": "Get cash flow for a given company and year",
-                "parameters": CashFlowInput.schema()["properties"]
-            },
-            {
-                "name": "summarize_balance_sheet",
-                "description": "Summarize balance sheet for a specific company and year",
-                "parameters": SummarizeBalanceSheetInput.schema()["properties"]
-            },
-            {
-                "name": "yearly_shareholding",
-                "description": "Get yearly shareholding data for a company",
-                "parameters": YearlyShareholdingInput.schema()["properties"]
-            },
-            {
-                "name": "financial_ratio",
-                "description": "Get financial ratios for a company and year",
-                "parameters": Financial_Ratio_Input.schema()["properties"]
-            },
-            {
-                "name": "compare_quarterly_income",
-                "description": "Compare quarterly income of a company for a given year",
-                "parameters": QuarterlyIncomeInput.schema()["properties"]
-            },
-            {
-                "name": "quarterly_shareholding",
-                "description": "Get quarterly shareholding of a company for a specific year",
-                "parameters": QuarterlyShareholdingInput.schema()["properties"]
-            },
-            {
-                "name": "sector_wise_company",
-                "description": "Get top companies in a given sector by market cap",
-                "parameters": SectorWiseCompanyInput.schema()["properties"]
-            }
-        ]
-    }
-
-
-def call_tool(tool_name, parameters):
-    
-    if tool_name == "company_info_":
-        validated = Company_Info_Input(**parameters)
-        return company_info(validated).dict()
-
-    elif tool_name == "compare_net_income":
-        validated = CompareNetIncomeInput(**parameters)
-        return compare_net_income(validated).dict()
-
-    elif tool_name == "cash_flow":
-        validated = CashFlowInput(**parameters)
-        return cash_flow(validated).dict()
-
-    elif tool_name == "summarize_balance_sheet":
-        validated = SummarizeBalanceSheetInput(**parameters)
-        return summarize_balance_sheet(validated).dict()
-
-    elif tool_name == "yearly_shareholding":
-        validated = YearlyShareholdingInput(**parameters)
-        return yearly_shareholding(validated).dict()
-
-    elif tool_name == "financial_ratio":
-        validated = Financial_Ratio_Input(**parameters)
-        return financial_ratio(validated).dict()
-
-    elif tool_name == "compare_quarterly_income":
-        validated = QuarterlyIncomeInput(**parameters)
-        # breakpoint()
-        return compare_quarterly_income(validated).dict()
-
-    elif tool_name == "quarterly_shareholding":
-        validated = QuarterlyShareholdingInput(**parameters)
-        return quarterly_shareholding(validated).dict()
-
-    elif tool_name == "sector_wise_company":
-        validated = SectorWiseCompanyInput(**parameters)
-        return sector_wise_company(validated).dict()
-    
-     # ✅ Add your custom tools here
-    elif tool_name == "three_statements_":
-        return three_statements_tool(tool_name, parameters)
-
-    elif tool_name == "cash_flow_to_debt_":
-        return cash_flow_to_debt(tool_name, parameters)
-
-    elif tool_name == "debt_to_financing_ratio_":
-        return debt_to_financing_ratio(tool_name, parameters)
-
-    elif tool_name == "operating_cf_to_interest_":
-        return operating_cf_to_interest(tool_name, parameters)
-
-    elif tool_name == "_net_c_f_margin":
-        return net_cash_flow_margin(tool_name, parameters)
-
-    elif tool_name == "_fixed_asset_turnover_ratio":
-        return fixed_asset_turnover(tool_name, parameters)
-
-    elif tool_name == "_operating_cf_to_liablities":
-        return operating_cash_flow_to_interest(tool_name, parameters)
-
-    else:
-        return "Unknown tool"
 
 #For three statements tool
 def three_statements_tool(tool_name, parameters):
@@ -174,6 +61,7 @@ def three_statements_tool(tool_name, parameters):
 def financial_ratio(input_data: Financial_Ratio_Input) -> Financial_Ratio_Output:
     result = {}
     session = SessionLocal()
+    field_data = None
 
 
     for company in input_data.company_names:
@@ -253,9 +141,11 @@ def financial_ratio(input_data: Financial_Ratio_Input) -> Financial_Ratio_Output
 
 
 def company_info(input_data: Company_Info_Input) -> Company_Info_Output:
+    import pdb; pdb.set_trace()
     result = {}
     session = SessionLocal()
-
+    field_data = None
+    # 
     for company in input_data.company_names:
         query = text("""
             SELECT 
@@ -303,11 +193,12 @@ def company_info(input_data: Company_Info_Input) -> Company_Info_Output:
                 "year": f"{input_data.year}-03-31"
             }).mappings().fetchone()
         except Exception as e:
-            result[company] = {"error": f"Query failed: {str(e)}"}
+            print(f"[company_info] Exception------------: {repr(e)}")
+            result[company] = {str(input_data.year): {"error": f"Query failed: {str(e)}"}}
             continue
 
         if not row:
-            result[company] = {"error": "Data not available"}
+            result[company] = {str(input_data.year): {"error": "Data not available"}}
             continue
 
         all_fields = {
@@ -375,7 +266,7 @@ def company_info(input_data: Company_Info_Input) -> Company_Info_Output:
                 else:
                     field_data["earnings_yield"] = "N/A"
 
-            if "debt trends" in requested and "debt growth" in requested:
+            if "debt trends" in requested or "debt growth" in requested:
                 field_data["company name"] = str(row["company_name"]) if row["company_name"] is not None else "N/A"
                 field_data["nse"] = str(row["nse"]) if row["nse"] is not None else "N/A"
                 field_data["debt"] = float(row["debt"]) if row["debt"] is not None else "N/A"
@@ -414,7 +305,7 @@ def company_info(input_data: Company_Info_Input) -> Company_Info_Output:
         #     # No specific fields requested, return all raw DB fields
            
         year_key = str(row["year"].year) if hasattr(row["year"], 'year') else str(row["year"])
-        result[company] = {year_key: field_data}
+        result[company] = {year_key: field_data if field_data is not None else {}}
 
     session.close()
 
@@ -426,8 +317,10 @@ def company_info(input_data: Company_Info_Input) -> Company_Info_Output:
 
 #For net income
 def compare_net_income(input_data: CompareNetIncomeInput) -> CompareNetIncomeOutput:
+    
     result = {}
     session = SessionLocal()
+    field_data = None
 
 
     for company in input_data.company_names:
@@ -537,6 +430,7 @@ def compare_net_income(input_data: CompareNetIncomeInput) -> CompareNetIncomeOut
 def cash_flow(input_data: CashFlowInput) -> CashFlowOutput:
     result = {}
     session = SessionLocal()
+    field_data = None
     
     
     for company in input_data.company_names:
@@ -571,7 +465,7 @@ def cash_flow(input_data: CashFlowInput) -> CashFlowOutput:
                 "cash_from_investing_activity": ["cash from investing activities", "investing activities", "net cash used in investing","investing cash flow"],
                 "cash_from_financing_activity": ["cash from financing activities","financing activities","net cash from financing","financing cash flow"],
                 "net_cash_flow": ["net cash flow", "net increase/decrease in cash","net change in cash","cash flow"],
-                "cash_flow" : ["cash flow", "cash movements","statement of cash flows","overall cash flow","financial statement", "three financial statement"]
+                "cash_flow" : ["cash flow", "cash flow statement", "cash movements","statement of cash flows","overall cash flow","financial statement", "three financial statement"]
             }
 
 
@@ -608,6 +502,7 @@ def cash_flow(input_data: CashFlowInput) -> CashFlowOutput:
 
 #For balance sheet
 def summarize_balance_sheet(input_data: SummarizeBalanceSheetInput) -> SummarizeBalanceSheetOutput:
+    
     session = SessionLocal()
     result = {}
    
@@ -782,12 +677,12 @@ def yearly_shareholding(input_data: YearlyShareholdingInput) -> YearlyShareholdi
 
 #For quarterly income
 def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncomeOutput:
-    breakpoint()
+    
     result = {}
     session = SessionLocal()
     
     all_fields = {
-        "quaterly_income_statement": ["profit and loss statement","quarterly profit and loss statement", "income statement" , "quarterly results", "quarterly p&l", "quarterly pnl","quarter wise results"],
+        "quaterly_income_statement": ["quaterly income statement", "profit and loss statement","quarterly profit and loss statement", "income statement" , "quarterly results", "quarterly p&l", "quarterly pnl","quarter wise results"],
         "sales": ["turnover", "gross sales", "total sales", "revenue", "sales"],
         "expenses": ["total expenses", "operating expenses", "costs", "outflows", "expenses"],
         "operating_profit": ["ebit", "earnings before interest and taxes", "operating income", "operating profit"],
@@ -809,7 +704,7 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
 
 
     def resolve_field(user_field: str) -> Union[str, None]:
-        breakpoint()
+        # 
         for key, aliases in all_fields.items():
             if user_field.lower() in aliases:
                 return key
@@ -968,7 +863,7 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
 
 
 #For quarterly shareholding
-def quarterly_shareholding(input_data: QuarterlyShareholdingInput) -> QuarterlyShareholdingOutput:
+def quarterly_shareholding(input_data: QuarterlyShareholdingInput) ->  QuarterlyShareholdingOutput:
     result = {}
     session = SessionLocal()
     
@@ -1086,7 +981,7 @@ def quarterly_shareholding(input_data: QuarterlyShareholdingInput) -> QuarterlyS
 
 
 #For company info
-def sector_wise_company(input_data: SectorWiseCompanyInput) -> SectorWiseCompanyOutput:
+def sector_wise_company(input_data: SectorWiseCompanyInput) ->  SectorWiseCompanyOutput:
     result = {}
     session = SessionLocal()
 
@@ -1145,6 +1040,7 @@ def sector_wise_company(input_data: SectorWiseCompanyInput) -> SectorWiseCompany
 
 #For cash flow to debt
 def cash_flow_to_debt(tool_name, parameters):
+    
     if tool_name != "cash_flow_to_debt_":
         return None  # Or raise an error if invalid tool
 
@@ -1186,6 +1082,7 @@ def cash_flow_to_debt(tool_name, parameters):
 #For debt to financing ratio
 def debt_to_financing_ratio(tool_name, parameters):
     
+    
     if tool_name != "debt_to_financing_ratio_":
         return None  # Or raise an error if invalid tool
 
@@ -1226,6 +1123,7 @@ def debt_to_financing_ratio(tool_name, parameters):
 
 #For operating cash flow interest
 def operating_cf_to_interest(tool_name, parameters):
+    
     
     if tool_name != "operating_cf_to_interest_":
         return None  # Or raise an error if invalid tool
@@ -1396,3 +1294,94 @@ def operating_cash_flow_to_interest(tool_name, parameters):
     },
     "year": year
 }
+
+
+# ----------------------
+# Tool Registry for dispatch
+# ----------------------
+_TOOL_REGISTRY: Dict[str, tuple] = {
+    "company_info_": (company_info, Company_Info_Input),
+    "compare_net_income": (compare_net_income, CompareNetIncomeInput),
+    "cash_flow": (cash_flow, CashFlowInput),
+    "summarize_balance_sheet": (summarize_balance_sheet, SummarizeBalanceSheetInput),
+    "yearly_shareholding": (yearly_shareholding, YearlyShareholdingInput),
+    "financial_ratio": (financial_ratio, Financial_Ratio_Input),
+    "compare_quarterly_income": (compare_quarterly_income, QuarterlyIncomeInput),
+    "quarterly_shareholding": (quarterly_shareholding, QuarterlyShareholdingInput),
+    "sector_wise_company": (sector_wise_company, SectorWiseCompanyInput),
+    "cash_flow_to_debt_": (cash_flow_to_debt , None),
+    "debt_to_financing_ratio_": (debt_to_financing_ratio , None),
+    "operating_cf_to_interest_": (operating_cf_to_interest ,None),
+    "_net_c_f_margin": (net_cash_flow_margin ,None),
+    "_fixed_asset_turnover_ratio": (fixed_asset_turnover ,None),
+    "_operating_cf_to_liablities": (operating_cash_flow_to_interest ,None),
+
+}
+
+
+
+
+
+# # ----------------------
+# # MCP-Compliant Tool Caller
+# # ----------------------
+def call_tool(tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+
+    
+    impl_tuple = _TOOL_REGISTRY.get(tool_name)
+    if not impl_tuple:
+        return {"error": f"Unknown tool: {tool_name}"}
+
+    func, input_model = impl_tuple
+
+    # Auto-fix company_names
+    if "company_names" in parameters and isinstance(parameters["company_names"], str):
+        parameters["company_names"] = [parameters["company_names"]]
+    
+     # Case 1: No input model → pass raw parameters
+    if input_model is None:
+        result = func(tool_name, parameters)
+
+        # Handle return types consistently
+        if hasattr(result, "dict"):
+            return result.dict()
+        elif isinstance(result, (dict, list, str, int, float, bool, type(None))):
+            return result
+        else:
+            return {"error": f"Unsupported return type: {type(result).__name__}"}
+    # Auto-fix fields
+    if "fields" in parameters and isinstance(parameters["fields"], str):
+        parameters["fields"] = [parameters["fields"]]
+    
+
+    try:
+        validated = input_model(**parameters)
+    except Exception as e:
+        return {"error": f"Input validation failed: {str(e)}"}
+
+    try:
+        result = func(validated)
+
+        # ✅ Ensure JSON serializable output
+        if hasattr(result, "dict"):  # If Pydantic model
+            return result.dict()
+        elif isinstance(result, (list, dict, str, int, float, bool, type(None))):
+            return result
+        else:
+            return {"error": f"Unsupported return type: {type(result).__name__}"}
+    except Exception as e:
+        return {"error": f"Tool execution failed: {str(e)}"}
+
+
+# ----------------------
+# MCP Tool List for frontend / LLM
+# ----------------------
+def list_tools() -> Dict[str, Any]:
+    tools_list = []
+    for name, (func, model) in _TOOL_REGISTRY.items():
+        tools_list.append({
+            "name": name,
+            "description": func.__doc__ or "",
+            "inputSchema": model.schema()
+        })
+    return {"tools": tools_list}

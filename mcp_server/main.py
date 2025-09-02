@@ -12,10 +12,14 @@ def tools_list():
 
 @app.post("/tools/call")
 async def tools_call(request: Request):
+    
     body = await request.json()
     tool_name = body.get("tool_name")
-    parameters = body.get("parameters")
+    parameters = body.get("parameters", {})  # ensure dict
+    
+    # Ab call_tool me sahi format pass karo
     return JSONResponse(content=call_tool(tool_name, parameters))
+
 
 @app.get("/resources/list")
 def resources_list():
