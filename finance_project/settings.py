@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'finance_app',
+    'rest_framework',
+    'rest_framework_simplejwt',
 ]
 
 MIDDLEWARE = [
@@ -153,22 +155,24 @@ FASTAPI_URL = os.getenv("FASTAPI_URL", "http://127.0.0.1:8001")
 
 
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+}
 
-# AUTH_USER_MODEL = "finance_app.CustomUser"
 
+from datetime import timedelta
 
-
-# AUTH_PASSWORD_VALIDATORS = [
-#     # {
-#     #     "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
-#     # },
-#     # {
-#     #     "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-#     # },
-#     # {
-#     #     "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
-#     # },
-#     # {
-#     #     "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
-#     # },
-# ]
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),   # Access token 15 min
+    "REFRESH_TOKEN_LIFETIME": timedelta(hours=5),     # Refresh token 5 hours
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}

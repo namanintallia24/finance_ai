@@ -134,25 +134,7 @@ def format_tool_result(tool_name: str, result: dict) -> str:
         return "\n".join(lines)
 
     elif tool_name == "three_statements_":
-        lines = ["📊 Comparison of Company Info:\n"]
-        for result in result:
-                comparison = result.get("comparison", {})
-                for company, year_data in comparison.items():
-                    lines.append(f"🏢 {company}:")
-                    for year, content in year_data.items():
-                        lines.append(f"  📅 Year: {year}")
-                        if isinstance(content, dict):
-                            for section, values in content.items():
-                                lines.append(f"    📂 {section.capitalize()}:")
-                                if isinstance(values, dict):
-                                    for key, val in values.items():
-                                        lines.append(f"      • {key.capitalize()}: {val}")
-                                else:
-                                    lines.append(f"      • {section}: {values}")
-                        else:
-                            lines.append(f"    • Data: {content}")
-                    lines.append("")  # Blank line between companies
-        return "\n".join(lines)
+        return result
     
     elif tool_name == "sector_wise_company":
         lines = ["📊 Sector-wise Company Comparison:"]

@@ -1,5 +1,4 @@
 # mcp_server/tools.py
-
 import pandas as pd
 from data1.db import SessionLocal
 from collections import defaultdict
@@ -317,6 +316,7 @@ def company_info(input_data: Company_Info_Input) -> Company_Info_Output:
 
 #For net income
 def compare_net_income(input_data: CompareNetIncomeInput) -> CompareNetIncomeOutput:
+    
     
     result = {}
     session = SessionLocal()
@@ -979,7 +979,6 @@ def quarterly_shareholding(input_data: QuarterlyShareholdingInput) ->  Quarterly
     )
 
 
-
 #For company info
 def sector_wise_company(input_data: SectorWiseCompanyInput) ->  SectorWiseCompanyOutput:
     result = {}
@@ -1315,6 +1314,7 @@ _TOOL_REGISTRY: Dict[str, tuple] = {
     "_net_c_f_margin": (net_cash_flow_margin ,None),
     "_fixed_asset_turnover_ratio": (fixed_asset_turnover ,None),
     "_operating_cf_to_liablities": (operating_cash_flow_to_interest ,None),
+    "three_statements_": (three_statements_tool ,None),
 
 }
 

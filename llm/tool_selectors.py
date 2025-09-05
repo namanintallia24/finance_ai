@@ -2,10 +2,21 @@ TOOLS = {
     "sector_wise_company": {
         "description": "Get all companies belonging to a specific sector",
         "params": {
-            "sector": "Sector name (e.g. IT, Banking, Pharma)"
+            "sector": ["List of requested sector fields.\
+    Options: Agro Chemicals, Air Transport Service, Alcoholic Beverages, Auto Ancillaries, Automobile, Banks, Bearings, Cables, \
+    Capital Goods - Electrical Equipment, Capital Goods-Non Electrical Equipment, Castings Forgings & Fastners, Cement, Cement - Products,\
+    Ceramic Products, Chemicals, Computer Education, Construction, Consumer Durables, de Oil & Natural Gas, Diamond Gems and Jewellery, \
+    dit Rating Agencies, Diversified, Dry cells, E-Commerce/App based Aggregator, Edible Oil, Education, Electronics, Engineering, \
+    Entertainment, Ferro Alloys, Fertilizers, Finance, FMCG, Gas Distribution, Glass & Glass Products, Healthcare, Hotels & Restaurants, \
+    Infrastructure Developers & Operators, Infrastructure Investment Trusts, Insurance, IT - Hardware, IT - Software, Leather, Logistics, \
+    Marine Port & Services, Media - Print/Television/Radio, Mining & Mineral products, Miscellaneous, Non Ferrous Metals, Oil Drill/Allied, \
+    Packaging, Paints/Varnish, Paper, Petrochemicals, Pharmaceuticals, Plantation & Plantation Products, Plastic products, Power Generation & Distribution,\
+    Power Infrastructure, Printing & Stationery, Quick Service Restaurant, Railways, Readymade Garments/ Apparells, Real Estate Investment Trusts, \
+    Realty, Refineries, Refractories, Retail, Ship Building, Shipping, Steel, Stock/ Commodity Brokers, Sugar, Telecom-Handsets/Mobile, \
+    Telecomm Equipment & Infra Services, Telecomm-Service, Textiles, Tobacco Products, Trading, Tyres"]
         }
     },
-   "quarterly_shareholding": {
+    "quarterly_shareholding": {
        "description": "Fetch quarterly shareholding pattern of a company for a given year and quarter. \
     If the user asks for the complete shareholding pattern, then set fields = ['shareholding pattern']. \
     If the user asks for specific categories (e.g., promoters, FIIs, DIIs, public), \
@@ -164,6 +175,15 @@ TOOLS = {
             "company_names": "Name of the company",
             "year": "Financial year (string, e.g., '2020')",
             "fields": ["cash from operating activities", "total liabilities"]
+
+        }
+    },
+   "three_statements_": {
+       "description": "Fetch the three financial statements(like compare_net_income, cash flow, summarize_balance_sheet) of a company",
+       "params": {
+            "company_names": "Name of the company",
+            "year": "Financial year (string, e.g., '2020')",
+            "fields": ["three financial statement"]
 
         }
     }

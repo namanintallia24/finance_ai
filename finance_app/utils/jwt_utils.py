@@ -1,16 +1,18 @@
 import jwt
-import datetime
 from django.conf import settings
+from datetime import datetime, timedelta
 
 SECRET_KEY = settings.SECRET_KEY
 
-def generate_jwt(username):
+def generate_jwt(user):
     payload = {
-        "username": username,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2),
-        "iat": datetime.datetime.utcnow()
+        "user_id": user.id,         # ✅ DRF expects this
+        "username": user.username,
+        "exp": datetime.utcnow() + timedelta(hours=5),
+        "iat": datetime.utcnow(),
     }
-    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return token
 
 def verify_jwt(token):
     try:
@@ -19,3 +21,4 @@ def verify_jwt(token):
         return None
     except jwt.InvalidTokenError:
         return None
+    
