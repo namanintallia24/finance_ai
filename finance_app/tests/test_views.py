@@ -1,109 +1,102 @@
-# finance_app/tests/test_views.py
-import json
-import jwt
-from django.test import TestCase, Client
 from django.urls import reverse
-from unittest.mock import patch
-from finance_app.models import UserQueryHistory
-from django.conf import settings
-from datetime import datetime, timedelta
-from finance_app.utils import jwt_utils
+from rest_framework.test import APITestCase, APIClient
+from rest_framework import status
 from django.contrib.auth import get_user_model
+from finance_app.models import UserQueryHistory
+from finance_app.utils.jwt_utils import generate_jwt
+from unittest.mock import patch
+
+
 User = get_user_model()
-    
 
 
-
-class ViewsSmokeTests(TestCase):
+class ViewsSmokeTests(APITestCase):
     def setUp(self):
-    # Create a test user
-        self.user = User.objects.create_user(
-            username="testuser",
-            password="testpass123"
-        )
-        self.client.login(username="testuser", password="password123")
+        self.client = APIClient()
+        self.username = "testuser"
+        self.password = "strong-password-123"
+        self.user = User.objects.create_user(username=self.username, password=self.password)
 
+    def _auth_headers(self, user=None):
+        user = user or self.user
+        token = generate_jwt(user)
+        return {"HTTP_AUTHORIZATION": f"Bearer {token}"}
 
-    def test_signup_view(self):
-        resp = self.client.get(reverse("signup"))
-        self.assertEqual(resp.status_code, 200)
+    def test_signup_success(self):
+        url = reverse("signup_api")
+        payload = {"username": "u2", "password": "pass12345", "password2": "pass12345"}
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn("message", response.data)
 
-    def test_login_view(self):
-        resp = self.client.get(reverse("login"))
-        self.assertEqual(resp.status_code, 200)
+    def test_signup_password_mismatch(self):
+        url = reverse("signup_api")
+        payload = {"username": "u3", "password": "pass1", "password2": "pass2"}
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_logout_view(self):
-        resp = self.client.get(reverse("logout"))
-        self.assertEqual(resp.status_code, 302)
+    def test_login_invalid_credentials(self):
+        url = reverse("login_api")
+        payload = {"username": self.username, "password": "wrong"}
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_dashboard_view_with_login(self):
-        resp = self.client.get(reverse("dashboard"), follow=True)
-        self.assertEqual(resp.status_code, 200)
+    def test_login_success_returns_tokens(self):
+        url = reverse("login_api")
+        payload = {"username": self.username, "password": self.password}
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        self.assertIn("user", response.data)
 
-    @patch("finance_app.views.verify_jwt")
-    def test_dashboard_view_with_jwt(self, mock_verify_jwt):
-        mock_verify_jwt.return_value = {"username": self.user.username}
-        self.client.cookies["jwt_token"] = "adummy_jwt"
-        resp = self.client.get(reverse("dashboard"), follow=True)
-        self.assertEqual(resp.status_code, 200)
+    def test_logout_requires_authentication(self):
+        url = reverse("logout_api")
+        response = self.client.post(url, {}, format="json")
+        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
 
+    def test_logout_authenticated(self):
+        url = reverse("logout_api")
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(url, {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("message", response.data)
 
-    @patch("finance_app.views.verify_jwt")
-    def test_dashboard_view_with_jwt_mocked(self, mock_verify_jwt):
-        # Mock verify_jwt to always return a user payload
-        mock_verify_jwt.return_value = {"user_id": self.user.id}
+    def test_dashboard_get_requires_auth(self):
+        url = reverse("dashboard_api")
+        response = self.client.get(url)
+        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
 
-        self.client.cookies["jwt_token"] = "dummy_jwt"
+    def test_dashboard_get_authenticated_with_valid_bearer(self):
+        url = reverse("dashboard_api")
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(url, **self._auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("history", response.data)
 
-        resp = self.client.get(reverse("dashboard") , follow= True)
+    def test_dashboard_post_empty_query_400(self):
+        url = reverse("dashboard_api")
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(url, {"query": ""}, format="json", **self._auth_headers())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
 
-        self.assertEqual(resp.status_code, 200)
+    def test_llm_query_requires_prompt(self):
+        url = reverse("llm_query_api")
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(url, {"prompt": ""}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-
-    @patch("finance_app.views.verify_jwt")
-    def test_dashboard_view_history(self, mock_verify_jwt):
-        mock_verify_jwt.return_value = {"user_id": self.user.id}
-
-        # Create a history item linked to the user
-        history = UserQueryHistory.objects.create(
-            user=self.user,
-            query="test query",
-            response="test response",
-            tables_html=[],
-            chart_data={}
-        )
-        # Access dashboard with history_id
-        url = reverse("dashboard") + f"?history_id={history.id}"
-        resp = self.client.get(url, follow=True) 
-
-        # Now the client is authenticated, and the request should be successful
-        self.assertEqual(resp.status_code, 200)
-
-
-    def test_dashboard_redirect_if_no_login(self):
-        self.client.logout()
-        resp = self.client.get(reverse("dashboard"))
-        self.assertEqual(resp.status_code, 302)
-
-    def test_llm_query_api_empty_prompt(self):
-        resp = self.client.post(
-            reverse("llm_query_api"),
-            data=json.dumps({"prompt": ""}),
-            content_type="application/json"
-        )
-        self.assertEqual(resp.status_code, 400)
-
-    def test_llm_query_api_invalid_method(self):
-        resp = self.client.get(reverse("llm_query_api"))
-        self.assertIn(resp.status_code, (400, 405))  # accept either
+    def test_llm_query_requires_auth(self):
+        url = reverse("llm_query_api")
+        response = self.client.post(url, {"prompt": "hello"}, format="json")
+        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
 
     @patch("finance_app.views.run_gemini_prompt")
-    def test_llm_query_api_valid_prompt(self, mock_gemini):
+    def test_llm_query_valid_prompt(self, mock_gemini):
         mock_gemini.return_value = "mocked response"
-        resp = self.client.post(
-            reverse("llm_query_api"),
-            data=json.dumps({"prompt": "test prompt"}),
-            content_type="application/json"
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertJSONEqual(resp.content, {"response": "mocked response"})
+        url = reverse("llm_query_api")
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(url, {"prompt": "test"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"response": "mocked response"})
