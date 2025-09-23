@@ -26,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
 APPEND_SLASH = True
 
@@ -86,21 +86,82 @@ WSGI_APPLICATION = 'finance_project.wsgi.application'
 #     }
 # }
 # Load .env file
+# load_dotenv()
+
+# DEBUG = os.getenv('DEBUG', 'False') == 'True'
+# SECRET_KEY = os.getenv('SECRET_KEY')
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.getenv('DB_NAME_FOR_USER'),
+#         'USER': os.getenv('DB_USER_FOR_USER'),
+#         'PASSWORD': os.getenv('DB_PASSWORD_FOR_USER'),
+#         'HOST': os.getenv('DB_HOST_FOR_USER', 'localhost'),
+#         'PORT': os.getenv('DB_PORT_FOR_USER', '5432'),
+#     }
+# }
+
+# import os
+# from dotenv import load_dotenv
+
+# load_dotenv()
+
+# DEBUG = os.getenv('DEBUG', 'False') == 'True'
+# SECRET_KEY = os.getenv('SECRET_KEY')
+
+# DATABASES = {
+#     'default': {   # finance_db (django auth)
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.getenv('DB_NAME_FOR_USER'),
+#         'USER': os.getenv('DB_USER_FOR_USER'),
+#         'PASSWORD': os.getenv('DB_PASSWORD_FOR_USER'),
+#         'HOST': os.getenv('DB_HOST_FOR_USER', 'db'),
+#         'PORT': os.getenv('DB_PORT_FOR_USER', '5432'),
+#     },
+#     'finance_ai': {   # finance_ai_db (for ai_data app)
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.getenv('DB_NAME_FOR_AI'),
+#         'USER': os.getenv('DB_USER_FOR_AI'),
+#         'PASSWORD': os.getenv('DB_PASSWORD_FOR_AI'),
+#         'HOST': os.getenv('DB_HOST_FOR_AI', 'db'),
+#         'PORT': os.getenv('DB_PORT_FOR_AI', '5432'),
+#     }
+# }
+
+# DATABASE_ROUTERS = ['finance_project.db_router.DatabaseRouter']
+
+
+import os
+from dotenv import load_dotenv
+
 load_dotenv()
 
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 DATABASES = {
-    'default': {
+    'default': {  # finance_db
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DB_NAME_FOR_USER'),
         'USER': os.getenv('DB_USER_FOR_USER'),
         'PASSWORD': os.getenv('DB_PASSWORD_FOR_USER'),
-        'HOST': os.getenv('DB_HOST_FOR_USER', 'localhost'),
+        'HOST': os.getenv('DB_HOST_FOR_USER', 'db'),
         'PORT': os.getenv('DB_PORT_FOR_USER', '5432'),
+    },
+    'finance_ai': {  # finance_ai_db
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME_FOR_AI'),
+        'USER': os.getenv('DB_USER_FOR_AI'),
+        'PASSWORD': os.getenv('DB_PASSWORD_FOR_AI'),
+        'HOST': os.getenv('DB_HOST_FOR_AI', 'db'),
+        'PORT': os.getenv('DB_PORT_FOR_AI', '5432'),
     }
 }
+
+DATABASE_ROUTERS = ['finance_project.db_router.DatabaseRouter']
+
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -150,8 +211,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 import os
 
 # ... tumhara existing settings ...
-
-FASTAPI_URL = os.getenv("FASTAPI_URL", "http://127.0.0.1:8001")
+FASTAPI_URL = os.getenv("FASTAPI_URL", "http://fastapi:8001")
 
 
 

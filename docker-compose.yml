@@ -1,17 +1,81 @@
-version: "3.8"
+
 services:
-  django:
-    build: .
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: /bin/sh -c 'PYTHONPATH=/app python manage.py runserver 0.0.0.0:8000'
+    working_dir: /app
     ports:
       - "8000:8000"
-    env_file: .env
-    volumes:
-      - .:/app
+    env_file:
+      - .env
+    environment:
+      FASTAPI_URL: http://fastapi:8001
+      DB_HOST_FOR_USER: db
+      DB_PORT_FOR_USER: 5432
+      DB_NAME_FOR_USER: finance_db
+      DB_USER_FOR_USER: finance
+      DB_PASSWORD_FOR_USER: finance
+      DB_HOST_FOR_AI: db
+      DB_PORT_FOR_AI: 5432
+      DB_NAME_FOR_AI: finance_ai_db
+      DB_USER_FOR_AI: finance
+      DB_PASSWORD_FOR_AI: finance
     depends_on:
-      - fastapi
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 
   fastapi:
-    image: your-fastapi-image:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    command: /bin/sh -c 'PYTHONPATH=/app uvicorn mcp_server.main:app --host 0.0.0.0 --port 8001 --reload'
+    working_dir: /app
     ports:
       - "8001:8001"
-    # if your mcp_server is in repo, add a service here to run it
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: finance_ai_db
+      DB_USER: finance
+      DB_PASS: finance
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8001/tools/list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: finance_db
+      POSTGRES_USER: finance
+      POSTGRES_PASSWORD: finance
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # - ./db-init/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finance -d finance_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  pgdata:
+  # mysqldata:

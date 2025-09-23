@@ -271,7 +271,7 @@ def send_mcp_tool_call(tool_name: str, parameters: dict) -> dict:
     
 
     # Select FastAPI URL (settings > env > default)
-    base_url = FASTAPI_URL or os.getenv("FASTAPI_URL", "http://127.0.0.1:8001")
+    base_url = FASTAPI_URL or os.getenv("FASTAPI_URL", "http://fastapi:8001")
     url = f"{base_url.rstrip('/')}/tools/call"
 
     try:
@@ -280,7 +280,7 @@ def send_mcp_tool_call(tool_name: str, parameters: dict) -> dict:
             json={"tool_name": tool_name, "parameters": parameters},
             timeout=60
         )
-        
+        print("resp_________new1------------------>>>>>>>", resp)
         resp.raise_for_status()
         backend_result = resp.json()
         return backend_result

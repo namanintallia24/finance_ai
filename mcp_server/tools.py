@@ -1,9 +1,18 @@
-# mcp_server/tools.py
+# # mcp_server/tools.py
+# import sys
+# from pathlib import Path
+# # Ensure project root on sys.path so `data1` is importable in containers
+# PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# if str(PROJECT_ROOT) not in sys.path:
+#     sys.path.insert(0, str(PROJECT_ROOT))
+
+import datetime 
 import pandas as pd
 from data1.db import SessionLocal
 from collections import defaultdict
 from decimal import Decimal
 from sqlalchemy import text
+from difflib import SequenceMatcher, get_close_matches
 from mcp_server.schemas import (
      CompareNetIncomeInput,
     CashFlowInput,
@@ -32,6 +41,68 @@ from typing import Union, List, Dict, Any, Optional
 # ------------------------------
 def calculate_net_margin(net_profit: float, sales: float) -> Optional[float]:
     return f"{round((net_profit / sales) * 100, 2)}%" if sales else None
+
+
+def _normalize_company_string(value: str) -> str:
+    if not isinstance(value, str):
+        return ""
+    cleaned = "".join(ch.lower() if ch.isalnum() else " " for ch in value)
+    return " ".join(cleaned.split())
+
+
+def _acronym_from_name(name: str) -> str:
+    tokens = [t for t in _normalize_company_string(name).split(" ") if t]
+    if not tokens:
+        return ""
+    return "".join(t[0] for t in tokens)
+
+
+def _string_similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def resolve_company_name_fuzzy(user_company_name: str, cutoff: float = 0.55) -> str:
+    """Resolve a user-supplied company name to the best DB company_name using fuzzy matching.
+
+    Strategy:
+    - Compare normalized strings with SequenceMatcher
+    - Compare against candidate acronyms (e.g., "Tata Consultancy Services" -> "tcs")
+    - Prefer the highest-scoring candidate; fall back to original if below cutoff
+    """
+    try:
+        companies = get_total_company()
+        if not isinstance(companies, list) or not companies:
+            return user_company_name
+    except Exception:
+        return user_company_name
+
+    user_norm = _normalize_company_string(user_company_name)
+    user_acr = _acronym_from_name(user_company_name)
+
+    best_name = user_company_name
+    best_score = -1.0
+
+    for candidate in companies:
+        cand_norm = _normalize_company_string(candidate)
+        cand_acr = _acronym_from_name(candidate)
+
+        # Base name similarity
+        score_name = _string_similarity(user_norm, cand_norm)
+
+        # Acronym similarity (handles inputs like "tcs")
+        score_acr_1 = _string_similarity(user_norm, cand_acr)
+        score_acr_2 = _string_similarity(user_acr, cand_acr)
+
+        # Substring bonus if user token appears in candidate name
+        substring_bonus = 0.05 if user_norm and user_norm in cand_norm else 0.0
+
+        score = max(score_name, score_acr_1, score_acr_2) + substring_bonus
+
+        if score > best_score:
+            best_score = score
+            best_name = candidate
+
+    return best_name if best_score >= cutoff else user_company_name
 
 
 #For three statements tool
@@ -77,10 +148,11 @@ def financial_ratio(input_data: Financial_Ratio_Input) -> Financial_Ratio_Output
                 f.roe_percentage
                 FROM financial_ratios f
                 INNER JOIN companies c ON f.company_id = c.id
-                WHERE c.company_name = :company  AND YEAR(f.ratio_date) = :year
+                WHERE c.company_name = :company AND EXTRACT(YEAR FROM f.ratio_date) = :year
             """)
 
         try:
+            
             row = session.execute(query, {
                 "company": company,
                 "year": input_data.year  # ✅ Year should be int for SQL
@@ -100,8 +172,8 @@ def financial_ratio(input_data: Financial_Ratio_Input) -> Financial_Ratio_Output
                     "days_payable": ["days payable", "payable days", "days payables outstanding", "dpo", "average payment period", "creditor days"],
                     "cash_conversion_cycle": ["cash conversion cycle", "ccc", "working capital cycle", "cash cycle", "net operating cycle"],
                     "working_capital_days": ["working capital days", "net working capital days", "wc days", "working capital cycle"],
-                    "roce_percentage": ["roce percent","roce ratio", "roce %", "return on capital employed", "roce", "operating return", "capital efficiency"],
-                    "roe_percentage": ["roe percent", "roe ratio", "roe %", "return on equity", "roe", "shareholders return", "equity return", "net worth return"]
+                    "roce_percentage": ["roce percentage", "roce percent","roce ratio", "roce %", "return on capital employed", "roce", "operating return", "capital efficiency"],
+                    "roe_percentage": ["roe percentage", "roe percent", "roe ratio", "roe %", "return on equity", "roe", "shareholders return", "equity return", "net worth return"]
                 }
 
              # Filter fields if input_data.fields provided
@@ -140,11 +212,10 @@ def financial_ratio(input_data: Financial_Ratio_Input) -> Financial_Ratio_Output
 
 
 def company_info(input_data: Company_Info_Input) -> Company_Info_Output:
-    import pdb; pdb.set_trace()
     result = {}
     session = SessionLocal()
     field_data = None
-    # 
+     
     for company in input_data.company_names:
         query = text("""
             SELECT 
@@ -183,13 +254,14 @@ def company_info(input_data: Company_Info_Input) -> Company_Info_Output:
                 c.debt_10years_back
             FROM companies c
             INNER JOIN yearly_pnl y ON c.id = y.company_id
-            WHERE c.company_name = :company AND y.year_period = :year
+            WHERE c.company_name = :company AND y.year_period = :year_end
         """)
 
         try:
+            
             row = session.execute(query, {
                 "company": company,
-                "year": f"{input_data.year}-03-31"
+                "year_end": f"{input_data.year}-03-31"
             }).mappings().fetchone()
         except Exception as e:
             print(f"[company_info] Exception------------: {repr(e)}")
@@ -315,9 +387,7 @@ def company_info(input_data: Company_Info_Input) -> Company_Info_Output:
 
 
 #For net income
-def compare_net_income(input_data: CompareNetIncomeInput) -> CompareNetIncomeOutput:
-    
-    
+def compare_net_income(input_data: CompareNetIncomeInput) -> CompareNetIncomeOutput: 
     result = {}
     session = SessionLocal()
     field_data = None
@@ -343,10 +413,11 @@ def compare_net_income(input_data: CompareNetIncomeInput) -> CompareNetIncomeOut
                 y.financing_margin_percentage
                 FROM yearly_pnl y
                 INNER JOIN companies c ON y.company_id = c.id
-                WHERE c.company_name = :company  AND YEAR(y.year_period) = :year
+                WHERE c.company_name = :company AND LEFT(y.year_period, 4)::int = :year
             """)
 
         try:
+            
             row = session.execute(query, {
                 "company": company,
                 "year": int(input_data.year)  # ✅ Year should be int for SQL
@@ -354,7 +425,7 @@ def compare_net_income(input_data: CompareNetIncomeInput) -> CompareNetIncomeOut
         except Exception as e:
             result[company] = {"error": f"Query failed: {str(e)}"}  # ✅ always return dict
             continue
-
+        
         if not row:
             result[company] = {"error": "Data not available"}
         else:
@@ -398,7 +469,7 @@ def compare_net_income(input_data: CompareNetIncomeInput) -> CompareNetIncomeOut
                         "financing margin percentage": float(row["financing_margin_percentage"]) if row["financing_margin_percentage"] is not None else "N/A",
                         "omp percentage": float(row["omp_percentage"]) if row["omp_percentage"] is not None else "N/A",
                     } if k == "yearly_income_statement" else (
-                        calculate_net_margin(row["net_income"], row["sales"]) if k == "net_margin_" is not None else 
+                        calculate_net_margin(row["net_income"], row["sales"]) if k == "net_margin_" else
                         float(row[k]) if row[k] is not None else "N/A"
                     )
                     for i in input_data.fields
@@ -432,7 +503,6 @@ def cash_flow(input_data: CashFlowInput) -> CashFlowOutput:
     session = SessionLocal()
     field_data = None
     
-    
     for company in input_data.company_names:
         year = input_data.year
         query = text("""
@@ -445,10 +515,11 @@ def cash_flow(input_data: CashFlowInput) -> CashFlowOutput:
                     y.net_cash_flow 
                     FROM yearly_cash_flow y 
                     INNER JOIN companies c ON y.company_id = c.id
-                    WHERE c.company_name = :company  AND YEAR(y.cashflow_date) = :year
+                    WHERE c.company_name = :company  AND EXTRACT(YEAR FROM y.cashflow_date::date) = :year
                 """)
 
         try:
+            
             row = session.execute(query, {
                 "company": company,
                 "year": int(input_data.year)  # ✅ Year should be int for SQL
@@ -461,9 +532,9 @@ def cash_flow(input_data: CashFlowInput) -> CashFlowOutput:
             result[company] = {"error": "Data not available"}
         else:
             all_fields = {
-                "cash_from_operating_activity": ["cash from operating activities","operating activities", "net cash from operations","operating cash flow","cash flow from operations"],
-                "cash_from_investing_activity": ["cash from investing activities", "investing activities", "net cash used in investing","investing cash flow"],
-                "cash_from_financing_activity": ["cash from financing activities","financing activities","net cash from financing","financing cash flow"],
+                "cash_from_operating_activity": ["cash from operating activity","operating activities", "net cash from operations","operating cash flow","cash flow from operations"],
+                "cash_from_investing_activity": ["cash from investing activity", "investing activities", "net cash used in investing","investing cash flow"],
+                "cash_from_financing_activity": ["cash from financing activity","financing activities","net cash from financing","financing cash flow"],
                 "net_cash_flow": ["net cash flow", "net increase/decrease in cash","net change in cash","cash flow"],
                 "cash_flow" : ["cash flow", "cash flow statement", "cash movements","statement of cash flows","overall cash flow","financial statement", "three financial statement"]
             }
@@ -521,18 +592,18 @@ def summarize_balance_sheet(input_data: SummarizeBalanceSheetInput) -> Summarize
                 y.cwip,
                 y.investments,
                 y.other_assets,
-                y.Preference_Capital
+                y."Preference_Capital"
             FROM companies c
             INNER JOIN yearly_balance_sheet y ON c.id = y.company_id
-            WHERE c.company_name = :company
-            AND YEAR(y.balance_date) = :balance_date
+            WHERE c.company_name = :company AND EXTRACT(YEAR FROM y.balance_date) = :year
             LIMIT 1
         """)
 
         try:
+            
             row = session.execute(query, {
                 "company": company,
-                "balance_date": f"{input_data.year}-03-31"
+                "year": int(input_data.year)
             }).mappings().fetchone()
         except Exception as e:
             result[company] = {"error": f"Query failed: {str(e)}"}
@@ -612,10 +683,11 @@ def yearly_shareholding(input_data: YearlyShareholdingInput) -> YearlyShareholdi
                 y.government
                 FROM yearly_shareholding y
                 INNER JOIN companies c ON y.company_id = c.id
-                WHERE c.company_name = :company  AND YEAR(y.yearly_shareholding_date) = :year
+                WHERE c.company_name = :company  AND EXTRACT(YEAR FROM y.yearly_shareholding_date::date) = :year
             """)
 
         try:
+            
             row = session.execute(query, {
                 "company": company,
                 "year": input_data.year  # ✅ Year should be int for SQL
@@ -723,6 +795,7 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
 
     for company in input_data.company_names:
         try:
+            
             base_query = """
                 SELECT
                     q.net_profit,
@@ -745,7 +818,7 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
                     q.net_npa
                 FROM quarterly_pnl q
                 INNER JOIN companies c ON q.company_id = c.id
-                WHERE c.company_name = :company AND YEAR(q.quarter_date) = :year
+                WHERE c.company_name = :company AND EXTRACT(YEAR FROM q.quarter_date::date) = :year
             """
 
             rows = []
@@ -754,7 +827,7 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
             if input_data.quarter_month:
                 for qtr in input_data.quarter_month:
                     month, year_adj = get_month_and_adjusted_year(qtr, int(input_data.year))
-                    query = base_query + " AND MONTH(q.quarter_date) = :month AND YEAR(q.quarter_date) = :year"
+                    query = base_query +" AND EXTRACT(MONTH FROM q.quarter_date) = :month AND EXTRACT(YEAR FROM q.quarter_date) = :year"
                     q_params = {"company": company, "year": year_adj, "month": month}
                     data = session.execute(text(query), q_params).mappings().fetchall()
                     rows.extend(data)
@@ -762,16 +835,13 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
                 data = session.execute(text(base_query), params).mappings().fetchall()
                 rows = [r for r in data if r["year"].month != 3]
                 q4_params = {"company": company, "year": int(input_data.year) + 1, "month": 3}
-                q4_query = base_query + " AND MONTH(q.quarter_date) = :month AND YEAR(q.quarter_date) = :year"
+                q4_query = base_query + " AND EXTRACT(MONTH FROM q.quarter_date) = :month AND EXTRACT(YEAR FROM q.quarter_date) = :year"
                 q4_data = session.execute(text(q4_query), q4_params).mappings().fetchall()
                 rows.extend(q4_data)
 
         except Exception as e:
             result[company] = {"error": f"Query failed: {str(e)}"}
             continue
-
-        
-        
 
         if not rows:
             result[company] = {"error": "Data not available"}
@@ -864,6 +934,7 @@ def compare_quarterly_income(input_data: QuarterlyIncomeInput) -> QuarterlyIncom
 
 #For quarterly shareholding
 def quarterly_shareholding(input_data: QuarterlyShareholdingInput) ->  QuarterlyShareholdingOutput:
+    
     result = {}
     session = SessionLocal()
     
@@ -898,6 +969,7 @@ def quarterly_shareholding(input_data: QuarterlyShareholdingInput) ->  Quarterly
 
     for company in input_data.company_names:
         try:
+            
             base_query = """
             SELECT 
             q.shareholding_date AS year,
@@ -910,7 +982,7 @@ def quarterly_shareholding(input_data: QuarterlyShareholdingInput) ->  Quarterly
             q.government
             FROM quarterly_shareholding q
             INNER JOIN companies c ON q.company_id = c.id
-            WHERE c.company_name = :company AND YEAR(q.shareholding_date) = :year
+            WHERE c.company_name = :company AND EXTRACT(YEAR FROM q.shareholding_date::date) = :year
             """
                
             rows = []
@@ -919,7 +991,7 @@ def quarterly_shareholding(input_data: QuarterlyShareholdingInput) ->  Quarterly
             if input_data.quarter_month:
                 for qtr in input_data.quarter_month:
                     month, year_adj = get_month_and_adjusted_year(qtr, int(input_data.year))
-                    query = base_query + " AND MONTH(q.shareholding_date ) = :month AND YEAR(q.shareholding_date ) = :year"
+                    query = base_query + " AND EXTRACT(MONTH FROM q.shareholding_date) = :month AND EXTRACT(YEAR FROM q.shareholding_date) = :year"
                     q_params = {"company": company, "year": year_adj, "month": month}
                     data = session.execute(text(query), q_params).mappings().fetchall()
                     rows.extend(data)
@@ -927,7 +999,7 @@ def quarterly_shareholding(input_data: QuarterlyShareholdingInput) ->  Quarterly
                 data = session.execute(text(base_query), params).mappings().fetchall()
                 rows = [r for r in data if r["year"].month != 3]
                 q4_params = {"company": company, "year": int(input_data.year) + 1, "month": 3}
-                q4_query = base_query + " AND MONTH(q.shareholding_date) = :month AND YEAR(q.shareholding_date) = :year"
+                q4_query = base_query + " AND EXTRACT(MONTH FROM q.shareholding_date) = :month AND EXTRACT(YEAR FROM q.shareholding_date) = :year"
                 q4_data = session.execute(text(q4_query), q4_params).mappings().fetchall()
                 rows.extend(q4_data)
 
@@ -1063,8 +1135,17 @@ def cash_flow_to_debt(tool_name, parameters):
     loan_value = loans_data["comparison"][company_name][year].get(parameters["fields"][1])
 
     # Step 4: Avoid division by zero
-    if loan_value in [0, None]:
-        return None
+    if loan_value in [0, None] or cash_value in [0, None]:
+        return {
+            "comparison": {
+                company_name: {
+                    year: {
+                        "cash flow to debt ratio": "Data not available"
+                    }
+                }
+            },
+            "year": year
+        }
 
     return {
     "comparison": {
@@ -1104,10 +1185,18 @@ def debt_to_financing_ratio(tool_name, parameters):
 
     loan_value = loans_data["comparison"][company_name][year].get(parameters["fields"][0])
     cash_value = cash_data["comparison"][company_name][year].get(parameters["fields"][1])
-
     # Step 4: Avoid division by zero
-    if cash_value in [0, None]:
-        return None
+    if cash_value in [0, None] or loan_value in [0, None]:
+           return {
+            "comparison": {
+                company_name: {
+                    year: {
+                        "debt to financing ratio": "Data not available"
+                    }
+                }
+            },
+            "year": year
+           }
 
     return {
     "comparison": {
@@ -1149,8 +1238,17 @@ def operating_cf_to_interest(tool_name, parameters):
     interest_value = interest_data["comparison"][company_name][date_key].get(parameters["fields"][1])
 
     # Step 4: Avoid division by zero
-    if interest_value in [0, None]:
-        return None
+    if interest_value in [0, None] or cash_value in [0, None]:
+            return {
+                "comparison": {
+                    company_name: {
+                        year: {
+                            "operating cash flow to interest": "Data not available"
+                        }
+                    }
+                },
+                "year": year
+            }
 
     return {
     "comparison": {
@@ -1191,8 +1289,17 @@ def net_cash_flow_margin(tool_name, parameters):
     sales_value = sales_data["comparison"][company_name][date_key].get(parameters["fields"][1])
 
     # Step 4: Avoid division by zero
-    if sales_data in [0, None]:
-        return None
+    if sales_data in [0, None] or cash_value in [0, None]:
+        return {
+            "comparison": {
+                company_name: {
+                    year: {
+                        "net cash flow margin": "Data not available"
+                    }
+                }
+            },
+            "year": year
+        }
 
     return {
     "comparison": {
@@ -1235,8 +1342,18 @@ def fixed_asset_turnover(tool_name, parameters):
     fixed_asset_value = fixed_asset_data["comparison"][company_name][year].get(parameters["fields"][1])
 
     # Step 4: Avoid division by zero
-    if fixed_asset_value in [0, None]:
-        return None
+    if fixed_asset_value in [0, None] or sales_value in [0, None]:
+        return {
+            "comparison": {
+                company_name: {
+                    year: {
+                        "fixed asset turnover": "Data not available"
+                    }
+                }
+            },
+            "year": year
+        }
+        
 
     return {
     "comparison": {
@@ -1280,8 +1397,17 @@ def operating_cash_flow_to_interest(tool_name, parameters):
     liabilities_value = total_liabilities["comparison"][company_name][year].get(parameters["fields"][1])
 
     # Step 4: Avoid division by zero
-    if liabilities_value in [0, None]:
-        return None
+    if liabilities_value in [0, None] or cash_value in [0, None]:
+        return {
+            "comparison": {
+                company_name: {
+                    year: {
+                        "Operating CF to liabilities": "Data not available"
+                    }
+                }
+            },
+            "year": year
+        }
 
     return {
     "comparison": {
@@ -1318,9 +1444,16 @@ _TOOL_REGISTRY: Dict[str, tuple] = {
 
 }
 
-
-
-
+def get_total_company():
+    session = SessionLocal()
+    try:
+        query = text("SELECT company_name FROM companies")
+        result = session.execute(query).mappings().fetchall()
+        return [row["company_name"] for row in result]
+    except Exception as e:
+        return {"error": f"Query failed: {str(e)}"}
+    finally:
+        session.close()
 
 # # ----------------------
 # # MCP-Compliant Tool Caller
@@ -1333,10 +1466,21 @@ def call_tool(tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": f"Unknown tool: {tool_name}"}
 
     func, input_model = impl_tuple
+    
+    # Auto-fix company_names and apply fuzzy resolution to DB names
+    if "company_names" in parameters:
+        if isinstance(parameters["company_names"], str):
+            parameters["company_names"] = [parameters["company_names"]]
+        if isinstance(parameters["company_names"], list):
+            parameters["company_names"] = [
+                resolve_company_name_fuzzy(name) if isinstance(name, str) else name
+                for name in parameters["company_names"]
+            ]
 
-    # Auto-fix company_names
-    if "company_names" in parameters and isinstance(parameters["company_names"], str):
-        parameters["company_names"] = [parameters["company_names"]]
+    # Auto-fill year if missing year than current year 
+    if "year" in parameters:
+        if parameters["year"] is None:
+            parameters["year"] = str(datetime.datetime.now().year)
     
      # Case 1: No input model → pass raw parameters
     if input_model is None:
@@ -1379,9 +1523,15 @@ def call_tool(tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
 def list_tools() -> Dict[str, Any]:
     tools_list = []
     for name, (func, model) in _TOOL_REGISTRY.items():
+        schema = {}
+        try:
+            if model is not None and hasattr(model, "schema"):
+                schema = model.schema()
+        except Exception:
+            schema = {}
         tools_list.append({
             "name": name,
             "description": func.__doc__ or "",
-            "inputSchema": model.schema()
+            "inputSchema": schema
         })
     return {"tools": tools_list}

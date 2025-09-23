@@ -9,5 +9,5 @@ class JWTAuthMiddleware:
         if request.path.startswith("/dashboard"):
             token = request.COOKIES.get("jwt_token")
             if not token or not verify_jwt(token):
-                return redirect("login")
+                return redirect("/api/login/")
         return self.get_response(request)

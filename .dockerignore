@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+*.dist-info/
+
+# VCS
+.git/
+.gitignore
+
+# Env
+.env
+.env.*
+.venv/
+venv/
+
+# Bytecode and logs
+*.log
+*.sqlite3
+
+# Build artifacts
+build/
+dist/
+
+# Django/coverage
+staticfiles/
+media/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests caches
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+
+# Docker
+Dockerfile*
+docker-compose.yml
+build.log
+
+# Data files (keep code under data1/, ignore large datasets only)
+*.csv
+*.xlsx
+
+# Documentation
+README.MD
+*.md
+
+db.sqlite3

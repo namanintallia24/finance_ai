@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User   # <-- Use default User
+from django.contrib.auth.models import User
 
 class UserQueryHistory(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -11,3 +11,6 @@ class UserQueryHistory(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.query[:40]}"
+
+    class Meta:
+        db_table = 'user_query_history'  # ✅ table name

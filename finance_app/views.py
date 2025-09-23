@@ -128,8 +128,11 @@ def dashboard_api(request):
                 tool_name = tc.get("method")
                 parameters = tc.get("params", {})
                 res = send_mcp_tool_call(tool_name, parameters)
+                # breakpoint()
+                print("response from tool call------------------>>>>>>>", res)
                 tool_result_data_list.append(res)
 
+                
                 
                 if res != "Unknown tool":
                     tool_result_text += build_context(tool_name, res) + "\n"
@@ -211,7 +214,7 @@ def dashboard_api(request):
                     "user_query": user_query,
                     "tables": saved_tables_final,  # ✅ return JSON
                     "chart_data": chart_data,
-                    "history": history,
+                    # "history": history,
                 },
                 status=status.HTTP_200_OK,
             )

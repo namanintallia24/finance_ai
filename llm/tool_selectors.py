@@ -134,7 +134,7 @@ TOOLS = {
        "params": {
             "company_names": "Name of the company",
             "year": "Financial year (string, e.g., '2020')",
-            "fields": ["cash from operating activities", "net loans"]
+            "fields": ["cash from operating activity", "net loans"]
         }
     },
    "debt_to_financing_ratio_": {
@@ -142,7 +142,7 @@ TOOLS = {
        "params": {
             "company_names": "Name of the company",
             "year": "Financial year (string, e.g., '2020')",
-            "fields": ["net loans", "cash from financing activities"]
+            "fields": ["net loans", "cash from financing activity"]
         }
     },
    "operating_cf_to_interest_": {
@@ -150,7 +150,7 @@ TOOLS = {
        "params": {
             "company_names": "Name of the company",
             "year": "Financial year (string, e.g., '2020')",
-            "fields": ["cash from operating activities", "interest"]
+            "fields": ["cash from operating activity", "interest"]
         }
     },
    "_net_c_f_margin": {
@@ -174,7 +174,7 @@ TOOLS = {
        "params": {
             "company_names": "Name of the company",
             "year": "Financial year (string, e.g., '2020')",
-            "fields": ["cash from operating activities", "total liabilities"]
+            "fields": ["cash from operating activity", "total liabilities"]
 
         }
     },
