@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY requirement.txt ./requirements.txt
+COPY requirements.txt ./requirements.txt
 
 # Install Python dependencies with optimizations
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
